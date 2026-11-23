@@ -617,6 +617,21 @@ DISCLAIMER = ("This is a heuristic check of visible indicators only. A low "
               "score is not proof of malice. When it matters, verify through "
               "a channel you already trust.")
 
+# ANSI escape sequences (CSI, plus two-character ESC sequences).
+_ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]")
+
+
+def _strip_ctl(text: str) -> str:
+    """Remove ANSI escapes and control characters from untrusted text.
+
+    Header fields and URLs come from the message being checked and can
+    contain terminal escape sequences or raw control characters. They are
+    stripped here so a crafted input cannot rewrite, clear or recolor the
+    terminal that displays the report.
+    """
+    text = _ANSI_RE.sub("", str(text))
+    return "".join(ch for ch in text if ch >= " " and ch != "\x7f")
+
 
 def render_text(url_result: dict | None, header_result: dict | None,
                 score: int, findings: list[dict], notes: list[str]) -> str:
@@ -652,7 +667,7 @@ def render_text(url_result: dict | None, header_result: dict | None,
     lines.append(f"Score: {score}/100 -> {verdict}")
     lines.append("")
     lines.append(DISCLAIMER)
-    return "\n".join(lines)
+    return "\n".join(_strip_ctl(line) for line in lines)
 
 
 # --------------------------------------------------------------------------

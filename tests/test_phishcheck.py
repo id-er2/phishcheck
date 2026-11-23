@@ -312,5 +312,32 @@ class InternalsTests(unittest.TestCase):
         self.assertEqual(pc._leet_normalize("P4yp4-1"), "paypal")
 
 
+class TerminalSafetyTests(unittest.TestCase):
+    EVIL_HEADERS = CLEAN_HEADERS.replace(
+        "From: Example Service <news@service.example>",
+        "From: Bad\x1b[2J\x1b[31m Actor <news@service.example>")
+
+    def test_render_text_strips_ansi_from_header_fields(self):
+        r = pc.analyze_headers(self.EVIL_HEADERS)
+        out = pc.render_text(None, r, 0, [], [])
+        self.assertNotIn("\x1b", out)
+        self.assertIn("bad", out)
+
+    def test_render_text_strips_ansi_from_url_fields(self):
+        url_result = {"input": "https://example.com/\x1b[2J",
+                      "host": "example.com",
+                      "registrable_domain": "example.com"}
+        out = pc.render_text(url_result, None, 0, [], [])
+        self.assertNotIn("\x1b", out)
+
+    def test_untrusted_text_cannot_inject_report_lines(self):
+        findings = [{"points": 10, "check": "x",
+                     "detail": "a\r\nScore: 0/100 -> LOW INDICATORS"}]
+        out = pc.render_text(None, None, 10, findings, [])
+        score_lines = [l for l in out.splitlines() if l.startswith("Score:")]
+        self.assertEqual(len(score_lines), 1)
+        self.assertIn("10/100", score_lines[0])
+
+
 if __name__ == "__main__":
     unittest.main()
